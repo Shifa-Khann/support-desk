@@ -1,86 +1,70 @@
-// TicketForm.jsx — Create New Ticket Form Component
-// Handles the form for submitting a new support ticket.
-// Sends a POST request to /api/tickets.
-// Includes live client-side validation with error messages.
-
+// TicketForm.jsx — Create new ticket form with live validation
 import { useState } from 'react';
 
 const API_URL = 'http://localhost:3001/api';
 
+// Inline SVG icons
+function IconWarn(p)    { return <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>; }
+function IconCheck(p)   { return <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>; }
+function IconSend(p)    { return <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>; }
+function IconAlert(p)   { return <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/></svg>; }
+function IconLoader(p)  { return <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>; }
+
+const FIELDS = ['customer_name', 'customer_email', 'subject', 'description', 'priority'];
+
 export default function TicketForm({ onSuccess }) {
-  // Form field state — one piece of state for all fields
   const [form, setForm] = useState({
     customer_name: '',
     customer_email: '',
     subject: '',
     description: '',
-    priority: 'Medium', // Default priority
+    priority: 'Medium',
   });
 
-  // Track which fields have been "touched" (user interacted with them)
-  // so we only show errors after the user has tried to fill the field
-  const [touched, setTouched] = useState({});
+  // Track which fields the user has interacted with
+  const [touched, setTouched]         = useState({});
+  const [submitting, setSubmitting]   = useState(false);
+  const [serverErrors, setServerErrors] = useState([]);
+  const [success, setSuccess]         = useState(false);
 
-  // Submission state
-  const [submitting, setSubmitting] = useState(false);
-  const [serverErrors, setServerErrors] = useState([]); // Errors from the backend
-  const [success, setSuccess] = useState(false);
-
-  // Update form state when a field changes
   function handleChange(e) {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
-    // Mark field as touched when user types
     setTouched(prev => ({ ...prev, [name]: true }));
   }
 
-  // Mark a field as touched when user leaves it (onBlur)
   function handleBlur(e) {
     setTouched(prev => ({ ...prev, [e.target.name]: true }));
   }
 
-  // ─── Client-side validation (mirrors backend utils.js) ───
+  // Client-side validation (mirrors backend utils.js)
   function getFieldError(field) {
-    const value = form[field];
-
-    if (field === 'customer_name' && (!value || value.trim().length === 0)) {
+    const v = form[field];
+    if (field === 'customer_name' && (!v || !v.trim()))
       return 'Customer name is required.';
-    }
-
     if (field === 'customer_email') {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!value || !emailRegex.test(value.trim())) {
+      if (!v || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()))
         return 'Please enter a valid email address.';
-      }
     }
-
-    if (field === 'subject' && (!value || value.trim().length === 0)) {
+    if (field === 'subject' && (!v || !v.trim()))
       return 'Subject is required.';
-    }
-
-    if (field === 'description' && (!value || value.trim().length < 10)) {
+    if (field === 'description' && (!v || v.trim().length < 10))
       return 'Description must be at least 10 characters.';
-    }
-
-    if (field === 'priority' && !['Low', 'Medium', 'High'].includes(value)) {
+    if (field === 'priority' && !['Low', 'Medium', 'High'].includes(v))
       return 'Please select a priority.';
-    }
-
-    return null; // No error
+    return null;
   }
 
-  // Check if form is entirely valid (used to disable submit button)
-  const fields = ['customer_name', 'customer_email', 'subject', 'description', 'priority'];
-  const isFormValid = fields.every(f => !getFieldError(f));
+  const isFormValid = FIELDS.every(f => !getFieldError(f));
 
-  // ─── Form Submission ───
+  const willBeUrgent =
+    form.priority === 'High' ||
+    form.description.toLowerCase().includes('urgent');
+
   async function handleSubmit(e) {
     e.preventDefault();
-
-    // Mark all fields as touched so errors appear
-    setTouched(Object.fromEntries(fields.map(f => [f, true])));
-
-    if (!isFormValid) return; // Don't submit if client-side validation fails
+    setTouched(Object.fromEntries(FIELDS.map(f => [f, true])));
+    if (!isFormValid) return;
 
     setSubmitting(true);
     setServerErrors([]);
@@ -91,90 +75,84 @@ export default function TicketForm({ onSuccess }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-
       const data = await res.json();
 
       if (!res.ok) {
-        // Backend returned validation errors
         setServerErrors(data.details || [data.error]);
         return;
       }
 
-      // ✅ Success!
       setSuccess(true);
       setForm({ customer_name: '', customer_email: '', subject: '', description: '', priority: 'Medium' });
       setTouched({});
-
-      // Notify parent component so it can refresh the ticket list
       if (onSuccess) onSuccess(data);
-
-    } catch (err) {
+    } catch {
       setServerErrors(['Network error — is the backend server running?']);
     } finally {
       setSubmitting(false);
     }
   }
 
-  // Helper: gets the CSS class for a field (adds 'error' class if invalid & touched)
   function fieldClass(field, base = 'form-input') {
     return `${base} ${touched[field] && getFieldError(field) ? 'error' : ''}`;
   }
 
-  // Check if ticket will be urgent (for live preview)
-  const willBeUrgent =
-    form.priority === 'High' ||
-    form.description.toLowerCase().includes('urgent');
+  const descLen = form.description.length;
 
   return (
     <div>
-      {/* Page Header */}
       <div className="page-header">
-        <h2>Submit a Support Ticket</h2>
-        <p>Fill out the form below to open a new customer support request.</p>
+        <h2>New Support Ticket</h2>
+        <p>Fill out the form below to open a support request.</p>
       </div>
 
-      <div className="card" style={{ maxWidth: '720px' }}>
-        {/* Success Message */}
+      <div className="card" style={{ maxWidth: '680px' }}>
+        {/* Success banner */}
         {success && (
-          <div className="alert alert-success" style={{ marginBottom: '20px' }}>
-            ✅ Ticket submitted successfully! You can{' '}
-            <button
-              style={{ background: 'none', border: 'none', color: 'inherit', textDecoration: 'underline', cursor: 'pointer', fontWeight: 600 }}
-              onClick={() => setSuccess(false)}
-            >
-              submit another
-            </button>.
+          <div className="alert alert-success">
+            <IconCheck width="15" height="15" />
+            <span>
+              Ticket submitted!{' '}
+              <button
+                style={{ background: 'none', border: 'none', color: 'inherit', textDecoration: 'underline', cursor: 'pointer', fontWeight: 600, padding: 0, fontFamily: 'inherit', fontSize: 'inherit' }}
+                onClick={() => setSuccess(false)}
+              >
+                Submit another
+              </button>
+            </span>
           </div>
         )}
 
-        {/* Server-side Errors */}
+        {/* Server errors */}
         {serverErrors.length > 0 && (
           <div className="alert alert-error">
+            <IconWarn width="15" height="15" />
             <div>
-              <strong>⚠️ Please fix the following errors:</strong>
-              <ul style={{ marginTop: '6px', paddingLeft: '20px' }}>
-                {serverErrors.map((err, i) => (
-                  <li key={i}>{err}</li>
-                ))}
+              <strong>Please fix the following:</strong>
+              <ul style={{ marginTop: '4px', paddingLeft: '18px', fontWeight: 400 }}>
+                {serverErrors.map((err, i) => <li key={i}>{err}</li>)}
               </ul>
             </div>
           </div>
         )}
 
-        {/* Urgent Preview Badge */}
+        {/* Urgent preview */}
         {willBeUrgent && (form.priority || form.description) && (
-          <div className="alert alert-error" style={{ marginBottom: '20px' }}>
-            🚨 This ticket will be flagged as <strong>URGENT</strong>
-            {form.priority === 'High' ? ' (High priority)' : ' ("urgent" in description)'}
+          <div className="alert alert-warning">
+            <IconAlert width="15" height="15" />
+            <span>
+              This ticket will be flagged as <strong>urgent</strong>
+              {form.priority === 'High' ? ' (High priority)' : ' ("urgent" keyword in description)'}.
+            </span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} noValidate>
-          {/* Name + Email row */}
+          {/* Name + Email */}
           <div className="form-grid">
             <div className="form-group">
               <label className="form-label" htmlFor="customer_name">
-                Customer Name <span>*</span>
+                Customer Name <span className="req">*</span>
               </label>
               <input
                 id="customer_name"
@@ -184,17 +162,20 @@ export default function TicketForm({ onSuccess }) {
                 value={form.customer_name}
                 onChange={handleChange}
                 onBlur={handleBlur}
-                placeholder="e.g. Alice Smith"
+                placeholder="Alice Smith"
                 autoComplete="off"
               />
               {touched.customer_name && getFieldError('customer_name') && (
-                <span className="form-error">⚠ {getFieldError('customer_name')}</span>
+                <span className="form-error">
+                  <IconWarn width="12" height="12" />
+                  {getFieldError('customer_name')}
+                </span>
               )}
             </div>
 
             <div className="form-group">
               <label className="form-label" htmlFor="customer_email">
-                Email Address <span>*</span>
+                Email Address <span className="req">*</span>
               </label>
               <input
                 id="customer_email"
@@ -204,10 +185,13 @@ export default function TicketForm({ onSuccess }) {
                 value={form.customer_email}
                 onChange={handleChange}
                 onBlur={handleBlur}
-                placeholder="e.g. alice@example.com"
+                placeholder="alice@example.com"
               />
               {touched.customer_email && getFieldError('customer_email') && (
-                <span className="form-error">⚠ {getFieldError('customer_email')}</span>
+                <span className="form-error">
+                  <IconWarn width="12" height="12" />
+                  {getFieldError('customer_email')}
+                </span>
               )}
             </div>
           </div>
@@ -215,7 +199,7 @@ export default function TicketForm({ onSuccess }) {
           {/* Subject */}
           <div className="form-group">
             <label className="form-label" htmlFor="subject">
-              Subject <span>*</span>
+              Subject <span className="req">*</span>
             </label>
             <input
               id="subject"
@@ -228,14 +212,17 @@ export default function TicketForm({ onSuccess }) {
               placeholder="Brief summary of the issue"
             />
             {touched.subject && getFieldError('subject') && (
-              <span className="form-error">⚠ {getFieldError('subject')}</span>
+              <span className="form-error">
+                <IconWarn width="12" height="12" />
+                {getFieldError('subject')}
+              </span>
             )}
           </div>
 
           {/* Description */}
           <div className="form-group">
             <label className="form-label" htmlFor="description">
-              Description <span>*</span>
+              Description <span className="req">*</span>
             </label>
             <textarea
               id="description"
@@ -244,58 +231,63 @@ export default function TicketForm({ onSuccess }) {
               value={form.description}
               onChange={handleChange}
               onBlur={handleBlur}
-              placeholder="Please describe the issue in detail (minimum 10 characters)..."
+              placeholder="Describe the issue in detail (minimum 10 characters)..."
             />
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'right' }}>
-              {form.description.length} chars
-              {form.description.length < 10 && form.description.length > 0 && (
-                <span style={{ color: 'var(--color-high)' }}> (need {10 - form.description.length} more)</span>
+            <div className={`char-counter ${descLen > 0 && descLen < 10 ? 'warn' : ''}`}>
+              <span>{descLen} chars</span>
+              {descLen > 0 && descLen < 10 && (
+                <span>{10 - descLen} more needed</span>
               )}
-            </span>
+            </div>
             {touched.description && getFieldError('description') && (
-              <span className="form-error">⚠ {getFieldError('description')}</span>
+              <span className="form-error">
+                <IconWarn width="12" height="12" />
+                {getFieldError('description')}
+              </span>
             )}
           </div>
 
           {/* Priority */}
           <div className="form-group">
-            <label className="form-label" htmlFor="priority">
-              Priority <span>*</span>
+            <label className="form-label">
+              Priority <span className="req">*</span>
             </label>
-            <select
-              id="priority"
-              name="priority"
-              className={fieldClass('priority', 'form-select')}
-              value={form.priority}
-              onChange={handleChange}
-              onBlur={handleBlur}
-            >
-              <option value="Low">🟢 Low</option>
-              <option value="Medium">🟡 Medium</option>
-              <option value="High">🔴 High (Urgent)</option>
-            </select>
-            {touched.priority && getFieldError('priority') && (
-              <span className="form-error">⚠ {getFieldError('priority')}</span>
-            )}
+            <div className="priority-pills">
+              {['Low', 'Medium', 'High'].map(p => (
+                <button
+                  key={p}
+                  type="button"
+                  className={`priority-pill ${form.priority === p ? `active-${p.toLowerCase()}` : ''}`}
+                  onClick={() => {
+                    setForm(prev => ({ ...prev, priority: p }));
+                    setTouched(prev => ({ ...prev, priority: true }));
+                  }}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+            {/* Hidden select for accessibility / form semantics */}
+            <input type="hidden" name="priority" value={form.priority} />
           </div>
 
-          {/* Submit Button */}
-          <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+          <div className="divider" />
+
+          {/* Submit */}
+          <div style={{ display: 'flex', gap: '10px' }}>
             <button
               type="submit"
               className="btn btn-primary"
               disabled={submitting}
               id="submit-ticket-btn"
             >
-              {submitting ? '⏳ Submitting...' : '🚀 Submit Ticket'}
+              {submitting
+                ? <><IconLoader width="14" height="14" style={{ animation: 'spin .65s linear infinite' }} /> Submitting...</>
+                : <><IconSend width="14" height="14" /> Submit Ticket</>
+              }
             </button>
           </div>
         </form>
-      </div>
-
-      {/* Info tip */}
-      <div className="alert alert-info" style={{ marginTop: '24px', maxWidth: '720px' }}>
-        💡 <strong>Interview tip:</strong> Validation runs on both the frontend AND backend. The backend uses <code>utils.js</code> to validate and detect urgency independently of the frontend.
       </div>
     </div>
   );

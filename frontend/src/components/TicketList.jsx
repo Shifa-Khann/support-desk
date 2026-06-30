@@ -1,60 +1,60 @@
-// TicketList.jsx — Ticket List Page Component
-// Displays all tickets in a searchable, filterable, sortable list.
-// Clicking a ticket card opens the TicketDetail modal.
-
-import { useEffect, useState, useCallback } from 'react';
+// TicketList.jsx — Searchable, filterable ticket table view
+import { useEffect, useState } from 'react';
 import TicketDetail from './TicketDetail';
 
 const API_URL = 'http://localhost:3001/api';
 
-// Helper: Format date for display
-function formatDate(isoString) {
-  if (!isoString) return '—';
-  return new Date(isoString).toLocaleString('en-US', {
+function formatDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
   });
 }
 
+// Inline SVG icons
+function IconSearch(p)   { return <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>; }
+function IconChevron(p)  { return <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>; }
+function IconWarn(p)     { return <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>; }
+function IconEmpty(p)    { return <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/></svg>; }
+function IconRefresh(p)  { return <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>; }
+function IconSort(p)     { return <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M7 12h10M11 18h2"/></svg>; }
+
+function statusBadgeClass(status) {
+  const map = { 'Open': 'open', 'In Progress': 'progress', 'Resolved': 'resolved' };
+  return `badge badge-status-${map[status] || 'open'}`;
+}
+
+function priorityBadgeClass(priority) {
+  return `badge badge-priority-${priority?.toLowerCase()}`;
+}
+
 export default function TicketList() {
-  const [tickets, setTickets] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  // Search, filter, and sort state
-  const [search, setSearch] = useState('');
+  const [tickets, setTickets]         = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState('');
+  const [search, setSearch]           = useState('');
   const [filterPriority, setFilterPriority] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [sort, setSort] = useState('newest');
+  const [filterStatus, setFilterStatus]     = useState('');
+  const [sort, setSort]               = useState('newest');
+  const [selectedId, setSelectedId]   = useState(null);
 
-  // Which ticket is currently selected for detail view
-  const [selectedTicketId, setSelectedTicketId] = useState(null);
-
-  // Fetch tickets whenever search/filter/sort changes
   useEffect(() => {
-    // Debounce the search so we don't fire on every keystroke
-    const timer = setTimeout(() => {
-      fetchTickets();
-    }, 300);
-    return () => clearTimeout(timer);
+    const t = setTimeout(fetchTickets, 300);
+    return () => clearTimeout(t);
   }, [search, filterPriority, filterStatus, sort]);
 
   async function fetchTickets() {
     try {
       setLoading(true);
       setError('');
-
-      // Build the query string from current filter state
-      const params = new URLSearchParams();
-      if (search)         params.append('search', search);
-      if (filterPriority) params.append('priority', filterPriority);
-      if (filterStatus)   params.append('status', filterStatus);
-      if (sort)           params.append('sort', sort);
-
-      const res = await fetch(`${API_URL}/tickets?${params.toString()}`);
+      const p = new URLSearchParams();
+      if (search)         p.append('search', search);
+      if (filterPriority) p.append('priority', filterPriority);
+      if (filterStatus)   p.append('status', filterStatus);
+      if (sort)           p.append('sort', sort);
+      const res = await fetch(`${API_URL}/tickets?${p}`);
       if (!res.ok) throw new Error('Failed to load tickets.');
-      const data = await res.json();
-      setTickets(data);
+      setTickets(await res.json());
     } catch (err) {
       setError(err.message);
     } finally {
@@ -62,48 +62,32 @@ export default function TicketList() {
     }
   }
 
-  // Called by TicketDetail when status is changed — refreshes the list
-  function handleStatusChanged() {
-    fetchTickets();
-  }
-
-  // Status badge CSS class
-  function statusBadgeClass(status) {
-    const map = { 'Open': 'open', 'In Progress': 'progress', 'Resolved': 'resolved' };
-    return `badge badge-status-${map[status] || 'open'}`;
-  }
-
-  // Priority badge CSS class
-  function priorityBadgeClass(priority) {
-    return `badge badge-priority-${priority?.toLowerCase()}`;
-  }
-
   return (
     <div>
-      {/* Page Header */}
+      {/* Header */}
       <div className="page-header">
         <h2>Support Tickets</h2>
         <p>
-          {loading ? 'Loading...' : `${tickets.length} ticket${tickets.length !== 1 ? 's' : ''} found`}
+          {loading
+            ? 'Loading...'
+            : `${tickets.length} ticket${tickets.length !== 1 ? 's' : ''} found`}
         </p>
       </div>
 
-      {/* ── Toolbar: Search + Filters + Sort ── */}
+      {/* Toolbar */}
       <div className="toolbar">
-        {/* Search box */}
         <div className="search-wrapper">
-          <span className="search-icon">🔍</span>
+          <IconSearch className="search-icon" />
           <input
             id="ticket-search"
             type="text"
             className="search-input"
-            placeholder="Search by name, email, or subject..."
+            placeholder="Search by name, email or subject..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
 
-        {/* Priority filter */}
         <select
           id="filter-priority"
           className="filter-select"
@@ -111,12 +95,11 @@ export default function TicketList() {
           onChange={e => setFilterPriority(e.target.value)}
         >
           <option value="">All Priorities</option>
-          <option value="High">🔴 High</option>
-          <option value="Medium">🟡 Medium</option>
-          <option value="Low">🟢 Low</option>
+          <option value="High">High</option>
+          <option value="Medium">Medium</option>
+          <option value="Low">Low</option>
         </select>
 
-        {/* Status filter */}
         <select
           id="filter-status"
           className="filter-select"
@@ -124,101 +107,119 @@ export default function TicketList() {
           onChange={e => setFilterStatus(e.target.value)}
         >
           <option value="">All Statuses</option>
-          <option value="Open">📬 Open</option>
-          <option value="In Progress">⚙️ In Progress</option>
-          <option value="Resolved">✅ Resolved</option>
+          <option value="Open">Open</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Resolved">Resolved</option>
         </select>
 
-        {/* Sort toggle */}
         <button
           id="sort-toggle"
-          className="btn btn-secondary btn-sm"
+          className="btn btn-secondary"
           onClick={() => setSort(s => s === 'newest' ? 'oldest' : 'newest')}
         >
-          {sort === 'newest' ? '🔽 Newest First' : '🔼 Oldest First'}
+          <IconSort width="14" height="14" />
+          {sort === 'newest' ? 'Newest first' : 'Oldest first'}
         </button>
 
-        {/* Refresh */}
-        <button className="btn btn-secondary btn-sm" onClick={fetchTickets}>
-          🔄 Refresh
+        <button className="btn btn-ghost" onClick={fetchTickets}>
+          <IconRefresh width="14" height="14" />
+          Refresh
         </button>
       </div>
 
-      {/* ── Error State ── */}
+      {/* Error */}
       {error && (
-        <div className="alert alert-error">⚠️ {error} — Is the backend running on port 3001?</div>
+        <div className="alert alert-error">
+          <IconWarn />
+          <span>{error} — Is the backend running on port 3001?</span>
+        </div>
       )}
 
-      {/* ── Loading State ── */}
+      {/* Loading */}
       {loading && !error && (
         <div className="loading-spinner">
-          <div className="spinner"></div>
+          <div className="spinner" />
           <span>Loading tickets...</span>
         </div>
       )}
 
-      {/* ── Empty State ── */}
+      {/* Empty */}
       {!loading && !error && tickets.length === 0 && (
-        <div className="card">
+        <div className="tickets-table">
           <div className="empty-state">
-            <span className="empty-icon">🎫</span>
+            <IconEmpty className="empty-icon" />
             <h3>No tickets found</h3>
             <p>
               {search || filterPriority || filterStatus
-                ? 'Try adjusting your search or filters.'
+                ? 'Try adjusting your filters.'
                 : 'No tickets have been submitted yet.'}
             </p>
           </div>
         </div>
       )}
 
-      {/* ── Ticket Cards ── */}
+      {/* Table */}
       {!loading && !error && tickets.length > 0 && (
-        <div className="tickets-list">
+        <div className="tickets-table">
+          {/* Header row */}
+          <div className="tickets-table-header">
+            <div className="th">ID</div>
+            <div className="th">Subject / Customer</div>
+            <div className="th">Date</div>
+            <div className="th">Priority</div>
+            <div className="th">Status</div>
+            <div className="th" />
+          </div>
+
+          {/* Data rows */}
           {tickets.map(ticket => (
             <div
               key={ticket.id}
-              className={`ticket-card ${ticket.is_urgent ? 'urgent-card' : ''}`}
-              onClick={() => setSelectedTicketId(ticket.id)}
+              className={`ticket-row ${ticket.is_urgent ? 'urgent-row' : ''}`}
+              onClick={() => setSelectedId(ticket.id)}
               role="button"
               tabIndex={0}
-              onKeyDown={e => e.key === 'Enter' && setSelectedTicketId(ticket.id)}
+              onKeyDown={e => e.key === 'Enter' && setSelectedId(ticket.id)}
               aria-label={`View ticket: ${ticket.subject}`}
             >
-              {/* ID */}
-              <span className="ticket-id-badge">#{ticket.id}</span>
+              <div className="td td-id">#{ticket.id}</div>
 
-              {/* Main content */}
-              <div className="ticket-main">
+              <div className="td td-main">
                 <div className="ticket-subject">{ticket.subject}</div>
-                <div className="ticket-meta">
-                  <span className="ticket-customer">👤 {ticket.customer_name}</span>
-                  <span className="ticket-customer" style={{ color: 'var(--text-muted)' }}>
-                    {ticket.customer_email}
-                  </span>
-                  <span className="ticket-date">🕒 {formatDate(ticket.created_at)}</span>
+                <div className="ticket-customer-info">
+                  {ticket.customer_name} &middot; {ticket.customer_email}
+                  {ticket.is_urgent === 1 && (
+                    <span className="badge badge-urgent" style={{ marginLeft: '6px', fontSize: '.68rem', padding: '1px 6px' }}>
+                      Urgent
+                    </span>
+                  )}
                 </div>
               </div>
 
-              {/* Badges */}
-              <div style={{ display: 'flex', gap: '8px', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                {ticket.is_urgent === 1 && (
-                  <span className="badge badge-urgent">🚨 URGENT</span>
-                )}
+              <div className="td td-date">{formatDate(ticket.created_at)}</div>
+
+              <div className="td">
                 <span className={priorityBadgeClass(ticket.priority)}>{ticket.priority}</span>
+              </div>
+
+              <div className="td">
                 <span className={statusBadgeClass(ticket.status)}>{ticket.status}</span>
+              </div>
+
+              <div className="td td-chevron">
+                <IconChevron width="14" height="14" />
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* ── Ticket Detail Modal ── */}
-      {selectedTicketId !== null && (
+      {/* Detail modal */}
+      {selectedId !== null && (
         <TicketDetail
-          ticketId={selectedTicketId}
-          onClose={() => setSelectedTicketId(null)}
-          onStatusChanged={handleStatusChanged}
+          ticketId={selectedId}
+          onClose={() => setSelectedId(null)}
+          onStatusChanged={fetchTickets}
         />
       )}
     </div>
