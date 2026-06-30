@@ -1,76 +1,81 @@
-# 🎫 SupportDesk — Mini Customer Support Ticket System
+# SupportDesk
 
-A full-stack web application for managing customer support tickets. Built with **Node.js + Express** (backend), **SQLite** (database), and **React + Vite** (frontend).
+A full-stack web application for managing customer support tickets, built with Node.js, Express, SQLite, and React.
 
 ---
 
-## 📦 Project Structure
+## Project Structure
 
 ```
-internship-project/
+support-desk/
 │
-├── backend/                 ← Node.js + Express API Server
-│   ├── db.js                ← SQLite connection & schema setup
-│   ├── utils.js             ← Business logic: validation + urgency detection
-│   ├── server.js            ← Express API routes (5 endpoints)
-│   ├── test.js              ← Automated tests (Node built-in test runner)
+├── backend/
+│   ├── db.js          — SQLite connection and schema setup
+│   ├── utils.js       — Core business logic: validation and urgency detection
+│   ├── server.js      — Express API (5 endpoints)
+│   ├── test.js        — Automated test suite (Node built-in test runner)
 │   └── package.json
 │
-└── frontend/                ← React + Vite SPA
+└── frontend/
     ├── src/
-    │   ├── App.jsx          ← Root component (navigation + theme)
-    │   ├── index.css        ← Premium design system with dark/light mode
+    │   ├── App.jsx              — Root component: navigation and theme
+    │   ├── index.css            — Design system with dark/light mode
     │   └── components/
-    │       ├── Dashboard.jsx    ← Stats overview page
-    │       ├── TicketForm.jsx   ← Create ticket form with live validation
-    │       ├── TicketList.jsx   ← Ticket list with search/filter/sort
-    │       └── TicketDetail.jsx ← Ticket detail modal + customer history
+    │       ├── Dashboard.jsx    — Statistics overview
+    │       ├── TicketForm.jsx   — Ticket submission form with live validation
+    │       ├── TicketList.jsx   — Searchable, filterable ticket table
+    │       └── TicketDetail.jsx — Ticket detail modal with customer history
     └── index.html
 ```
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### 1. Start the Backend
 
 ```bash
 cd backend
-npm install          # Install dependencies (only needed once)
-node server.js       # Start the API server on http://localhost:3001
+npm install       # Install dependencies (first run only)
+node server.js    # Starts the API server at http://localhost:3001
 ```
 
-### 2. Start the Frontend (new terminal)
+### 2. Start the Frontend
+
+Open a second terminal:
 
 ```bash
 cd frontend
-npm install          # Install dependencies (only needed once)
-npm run dev          # Start Vite dev server on http://localhost:5173
+npm install       # Install dependencies (first run only)
+npm run dev       # Starts the dev server at http://localhost:5173
 ```
 
-Open your browser at **http://localhost:5173**
+Open **http://localhost:5173** in your browser.
 
 ---
 
-## 🔌 API Endpoints
+## API Reference
 
-| Method  | Endpoint                        | Description                                |
-|---------|---------------------------------|--------------------------------------------|
-| `POST`  | `/api/tickets`                  | Create a new ticket                        |
-| `GET`   | `/api/tickets`                  | List tickets (with search/filter/sort)     |
-| `GET`   | `/api/tickets/:id`              | Get one ticket + customer history          |
-| `PATCH` | `/api/tickets/:id/status`       | Update ticket status                       |
-| `GET`   | `/api/dashboard`                | Get summary statistics                     |
+| Method  | Endpoint                   | Description                            |
+|---------|----------------------------|----------------------------------------|
+| `POST`  | `/api/tickets`             | Create a new ticket                    |
+| `GET`   | `/api/tickets`             | List tickets (search, filter, sort)    |
+| `GET`   | `/api/tickets/:id`         | Get a single ticket with history       |
+| `PATCH` | `/api/tickets/:id/status`  | Update ticket status                   |
+| `GET`   | `/api/dashboard`           | Get summary statistics                 |
 
-### Query params for `GET /api/tickets`:
-- `search` — search across name, email, subject
-- `priority` — filter: `Low`, `Medium`, `High`
-- `status` — filter: `Open`, `In Progress`, `Resolved`
-- `sort` — `newest` (default) or `oldest`
+### Query Parameters — `GET /api/tickets`
+
+| Parameter  | Values                              | Description          |
+|------------|-------------------------------------|----------------------|
+| `search`   | Any string                          | Search by name, email, or subject |
+| `priority` | `Low`, `Medium`, `High`             | Filter by priority   |
+| `status`   | `Open`, `In Progress`, `Resolved`   | Filter by status     |
+| `sort`     | `newest` (default), `oldest`        | Sort order           |
 
 ---
 
-## 🗄️ Database Schema
+## Database Schema
 
 ```sql
 CREATE TABLE tickets (
@@ -81,7 +86,7 @@ CREATE TABLE tickets (
   description     TEXT    NOT NULL,
   priority        TEXT    NOT NULL CHECK(priority IN ('Low', 'Medium', 'High')),
   status          TEXT    NOT NULL DEFAULT 'Open'
-                         CHECK(status IN ('Open', 'In Progress', 'Resolved')),
+                          CHECK(status IN ('Open', 'In Progress', 'Resolved')),
   is_urgent       INTEGER NOT NULL DEFAULT 0,
   created_at      TEXT    NOT NULL,
   updated_at      TEXT    NOT NULL
@@ -90,42 +95,45 @@ CREATE TABLE tickets (
 
 ---
 
-## ✅ Validation Rules
+## Validation Rules
 
-| Field          | Rule                                                   |
-|----------------|--------------------------------------------------------|
-| customer_name  | Required, non-empty                                    |
-| customer_email | Required, valid format (regex: `x@x.x`)               |
-| subject        | Required, non-empty                                    |
-| description    | Required, minimum 10 characters                        |
-| priority       | Must be one of: `Low`, `Medium`, `High`               |
-| status (PATCH) | Must be one of: `Open`, `In Progress`, `Resolved`     |
+| Field            | Rule                                                 |
+|------------------|------------------------------------------------------|
+| `customer_name`  | Required, non-empty                                  |
+| `customer_email` | Required, must match standard email format           |
+| `subject`        | Required, non-empty                                  |
+| `description`    | Required, minimum 10 characters                      |
+| `priority`       | Must be one of: `Low`, `Medium`, `High`              |
+| `status` (PATCH) | Must be one of: `Open`, `In Progress`, `Resolved`   |
 
-Validation runs on **both the frontend** (for instant feedback) and **the backend** (for security).
-
----
-
-## 🚨 Urgent Ticket Detection
-
-A ticket is automatically flagged as **urgent** if **either**:
-- Its `priority` is `High`, OR  
-- Its `description` contains the word **"urgent"** (case-insensitive)
-
-This logic lives in `backend/utils.js → isUrgent()` and is applied on every `POST /api/tickets`.
+Validation is enforced on both the **frontend** (for immediate user feedback) and the **backend** (as a security boundary). The shared logic lives in `backend/utils.js`.
 
 ---
 
-## ⭐ Initiative Features
+## Urgent Ticket Detection
 
-### 1. Customer Ticket History
-When viewing a ticket, the **Customer Ticket History** panel shows all previous tickets from the same email address. This helps support agents see repeat issues and avoid duplication — a real production feature!
+A ticket is automatically flagged as urgent if either condition is met:
 
-### 2. Dark / Light Mode
-Click the toggle at the bottom of the sidebar to switch themes. The preference is saved in `localStorage` so it persists across page refreshes.
+- The `priority` field is set to `High`, or
+- The `description` contains the word `urgent` (case-insensitive)
+
+This detection runs server-side in `backend/utils.js → isUrgent()` on every `POST /api/tickets` request.
 
 ---
 
-## 🧪 Running Tests
+## Additional Features
+
+### Customer Ticket History
+
+When a ticket is opened in the detail view, a history panel displays all previous tickets submitted by the same email address. This allows support agents to identify recurring issues and understand a customer's full context at a glance.
+
+### Dark and Light Mode
+
+A theme toggle is available in the sidebar. The selected preference is persisted in `localStorage` and applied on every subsequent visit.
+
+---
+
+## Running Tests
 
 ```bash
 cd backend
@@ -133,25 +141,26 @@ node test.js
 ```
 
 The test suite covers:
-- ✅ Valid ticket passes validation
-- ✅ Missing name fails
-- ✅ Bad email format fails
-- ✅ Short description (< 10 chars) fails
-- ✅ Invalid priority fails
-- ✅ Multiple errors all reported
-- ✅ `High` priority → urgent
-- ✅ "urgent" in description (any case) → urgent
-- ✅ Medium priority, no "urgent" → not urgent
-- ✅ Valid/invalid status values
+
+- Valid ticket passes all validation checks
+- Missing required fields are each individually rejected
+- Invalid email format is rejected
+- Description shorter than 10 characters is rejected
+- Invalid priority value is rejected
+- Multiple validation errors are all reported at once
+- High priority tickets are flagged as urgent
+- Tickets with "urgent" in the description are flagged as urgent (any casing)
+- Tickets with medium priority and no urgency keyword are not flagged
+- Valid and invalid status transitions are handled correctly
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
-| Layer    | Technology                     |
-|----------|-------------------------------|
-| Frontend | React 19, Vite, Vanilla CSS   |
-| Backend  | Node.js, Express 4            |
-| Database | SQLite (via `sqlite3` package)|
-| Tests    | Node.js built-in `node:test`  |
-| Git      | Git + GitHub                  |
+| Layer    | Technology                      |
+|----------|---------------------------------|
+| Frontend | React 19, Vite, Vanilla CSS     |
+| Backend  | Node.js, Express 4              |
+| Database | SQLite (`sqlite3`)              |
+| Tests    | Node.js built-in `node:test`    |
+| Version Control | Git, GitHub              |
